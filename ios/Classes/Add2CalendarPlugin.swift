@@ -14,6 +14,7 @@ var statusBarStyle = UIApplication.shared.statusBarStyle
 public class Add2CalendarPlugin: NSObject, FlutterPlugin {
     
     var didSucceed = false
+    var completion: ((Bool) -> Void)?
     
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "add_2_calendar", binaryMessenger: registrar.messenger())
@@ -143,6 +144,7 @@ public class Add2CalendarPlugin: NSObject, FlutterPlugin {
     // Present edit event calendar modal
     
     func presentEventCalendarDetailModal(event: EKEvent, eventStore: EKEventStore, completion: @escaping(Bool) -> Void) {
+        self.completion = completion
         let eventModalVC = EKEventEditViewController()
         eventModalVC.event = event
         eventModalVC.eventStore = eventStore
@@ -165,8 +167,10 @@ extension Add2CalendarPlugin: EKEventEditViewDelegate {
     
     public func eventEditViewController(_ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction) {
         self.didSucceed = action == .saved
-        controller.dismiss(animated: true, completion: {
+        controller.dismiss(animated: true, completion: { [weak self] in
             UIApplication.shared.statusBarStyle = statusBarStyle
+            self?.completion?(self?.didSucceed ?? false)
+            self?.completion = nil
         })
     }
 }
