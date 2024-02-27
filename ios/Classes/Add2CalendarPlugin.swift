@@ -154,7 +154,6 @@ public class Add2CalendarPlugin: NSObject, FlutterPlugin {
         
         if let root = UIApplication.shared.keyWindow?.rootViewController {
             root.present(eventModalVC, animated: true, completion: {
-                completion(self.didSucceed)
                 statusBarStyle = UIApplication.shared.statusBarStyle
                 UIApplication.shared.statusBarStyle = UIStatusBarStyle.default
             })
