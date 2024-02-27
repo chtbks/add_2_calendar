@@ -5,34 +5,37 @@ import EventKitUI
 import Foundation
 
 extension Date {
-      init(milliseconds:Double) {
-          self = Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1000)
-      }
+    init(milliseconds:Double) {
+        self = Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1000)
+    }
 }
 
 var statusBarStyle = UIApplication.shared.statusBarStyle
 public class Add2CalendarPlugin: NSObject, FlutterPlugin {
-  public static func register(with registrar: FlutterPluginRegistrar) {
-    let channel = FlutterMethodChannel(name: "add_2_calendar", binaryMessenger: registrar.messenger())
-    let instance = Add2CalendarPlugin()
-    registrar.addMethodCallDelegate(instance, channel: channel)
-  }
-
- public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-      if call.method == "add2Cal" {
-        let args = call.arguments as! [String:Any]
-       
-          
-        addEventToCalendar(from: args,completion:{ (success) -> Void in
-              if success {
-                  result(true)
-              } else {
-                  result(false)
-              }
-          })
-      }
+    
+    var didSucceed = false
+    
+    public static func register(with registrar: FlutterPluginRegistrar) {
+        let channel = FlutterMethodChannel(name: "add_2_calendar", binaryMessenger: registrar.messenger())
+        let instance = Add2CalendarPlugin()
+        registrar.addMethodCallDelegate(instance, channel: channel)
     }
-
+    
+    public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        if call.method == "add2Cal" {
+            let args = call.arguments as! [String:Any]
+            
+            
+            addEventToCalendar(from: args,completion:{ (success) -> Void in
+                if success {
+                    result(true)
+                } else {
+                    result(false)
+                }
+            })
+        }
+    }
+    
     private func addEventToCalendar(from args: [String:Any], completion: ((_ success: Bool) -> Void)? = nil) {
         
         
@@ -48,7 +51,7 @@ public class Add2CalendarPlugin: NSObject, FlutterPlugin {
         
         let eventStore = EKEventStore()
         let event = createEvent(eventStore: eventStore, alarmInterval: alarmInterval, title: title, description: description, location: location, timeZone: timeZone, startDate: startDate, endDate: endDate, allDay: allDay, url: url, args: args)
-
+        
         presentCalendarModalToAddEvent(event, eventStore: eventStore, completion: completion)
     }
     
@@ -90,7 +93,7 @@ public class Add2CalendarPlugin: NSObject, FlutterPlugin {
         
         return event
     }
-
+    
     private func getAuthorizationStatus() -> EKAuthorizationStatus {
         return EKEventStore.authorizationStatus(for: EKEntityType.event)
     }
@@ -100,26 +103,29 @@ public class Add2CalendarPlugin: NSObject, FlutterPlugin {
     func presentCalendarModalToAddEvent(_ event: EKEvent, eventStore: EKEventStore, completion: ((_ success: Bool) -> Void)? = nil) {
         if #available(iOS 17, *) {
             OperationQueue.main.addOperation {
-                self.presentEventCalendarDetailModal(event: event, eventStore: eventStore)
+                self.presentEventCalendarDetailModal(event: event, eventStore: eventStore) { didSucceed in
+                    completion?(didSucceed)
+                }
             }
-            completion?(true)
         } else {
             let authStatus = getAuthorizationStatus()
             switch authStatus {
             case .authorized:
                 OperationQueue.main.addOperation {
-                    self.presentEventCalendarDetailModal(event: event, eventStore: eventStore)
+                    self.presentEventCalendarDetailModal(event: event, eventStore: eventStore) { didSucceed in
+                        completion?(didSucceed)
+                    }
                 }
-                completion?(true)
             case .notDetermined:
                 //Auth is not determined
                 //We should request access to the calendar
                 eventStore.requestAccess(to: .event, completion: { [weak self] (granted, error) in
                     if granted {
                         OperationQueue.main.addOperation {
-                            self?.presentEventCalendarDetailModal(event: event, eventStore: eventStore)
+                            self?.presentEventCalendarDetailModal(event: event, eventStore: eventStore) { didSucceed in
+                                completion?(didSucceed)
+                            }
                         }
-                        completion?(true)
                     } else {
                         // Auth denied
                         completion?(false)
@@ -136,7 +142,7 @@ public class Add2CalendarPlugin: NSObject, FlutterPlugin {
     
     // Present edit event calendar modal
     
-    func presentEventCalendarDetailModal(event: EKEvent, eventStore: EKEventStore) {
+    func presentEventCalendarDetailModal(event: EKEvent, eventStore: EKEventStore, completion: @escaping(Bool) -> Void) {
         let eventModalVC = EKEventEditViewController()
         eventModalVC.event = event
         eventModalVC.eventStore = eventStore
@@ -148,6 +154,7 @@ public class Add2CalendarPlugin: NSObject, FlutterPlugin {
         
         if let root = UIApplication.shared.keyWindow?.rootViewController {
             root.present(eventModalVC, animated: true, completion: {
+                completion(self.didSucceed)
                 statusBarStyle = UIApplication.shared.statusBarStyle
                 UIApplication.shared.statusBarStyle = UIStatusBarStyle.default
             })
@@ -158,6 +165,7 @@ public class Add2CalendarPlugin: NSObject, FlutterPlugin {
 extension Add2CalendarPlugin: EKEventEditViewDelegate {
     
     public func eventEditViewController(_ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction) {
+        self.didSucceed = action == .saved
         controller.dismiss(animated: true, completion: {
             UIApplication.shared.statusBarStyle = statusBarStyle
         })
